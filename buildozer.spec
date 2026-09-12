@@ -9,7 +9,7 @@ package.domain = org.memo
 source.dir = .
 source.include_exts = py,png,jpg,kv,json,txt
 
-main.version = 1.0.0
+version = 1.0.0
 version.code = 1
 
 # 启动入口
