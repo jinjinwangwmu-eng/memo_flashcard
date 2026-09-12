@@ -20,7 +20,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 构建 APK
-        run: buildozer android debug
+        # CI 以 root 运行，buildozer 会询问 "Are you sure you want to continue [y/n]?"
+        # 用 yes 管道自动应答 y，避免无终端时 EOFError 崩溃
+        run: yes | buildozer android debug 2>&1
 
       - name: 上传 APK 产物
         uses: actions/upload-artifact@v4
