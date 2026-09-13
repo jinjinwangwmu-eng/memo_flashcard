@@ -187,7 +187,7 @@ def _play_mp3(path, word):
 
 # ------------------------- 通用控件 -------------------------
 def btn(text, bg, on_press=None, color=(1, 1, 1, 1), size_hint=(None, None),
-        width=120, height=44, font_size=15):
+        width=132, height=54, font_size=17):
     b = Button(text=text, background_color=bg, color=color, size_hint=size_hint,
                width=width, height=height, font_size=font_size)
     if on_press:
@@ -195,7 +195,7 @@ def btn(text, bg, on_press=None, color=(1, 1, 1, 1), size_hint=(None, None),
     return b
 
 
-def txt_label(text, size_hint=(1, None), height=40, halign="left", font_size=15,
+def txt_label(text, size_hint=(1, None), height=44, halign="left", font_size=16,
               color=C["text"], markup=False):
     l = Label(text=text, size_hint=size_hint, height=height, halign=halign,
               valign="middle", font_size=font_size, color=color, markup=markup)
@@ -213,25 +213,25 @@ class TasksScreen(BoxLayout):
         self.refresh()
 
     def _build(self):
-        top = BoxLayout(size_hint=(1, None), height=44, spacing=6)
+        top = BoxLayout(size_hint=(1, None), height=56, spacing=6)
         self.project_spin = Spinner(size_hint=(0.45, 1), text="项目")
         self.project_spin.bind(text=self._on_project)
         top.add_widget(self.project_spin)
-        top.add_widget(btn("+项目", C["accent"], self._new_project, width=80))
+        top.add_widget(btn("+项目", C["accent"], self._new_project, width=96))
         self.add_widget(top)
 
-        add = BoxLayout(size_hint=(1, None), height=44, spacing=6)
+        add = BoxLayout(size_hint=(1, None), height=56, spacing=6)
         self.task_in = TextInput(size_hint=(0.5, 1), hint_text="新待办内容",
-                                  multiline=False, font_size=15)
+                                  multiline=False, font_size=17)
         self.prio_spin = Spinner(size_hint=(0.18, 1),
                                  values=[str(i) for i in range(PRIORITY_MIN, PRIORITY_MAX + 1)],
                                  text=str(PRIORITY_DEFAULT))
         self.review_cb = CheckBox(size_hint=(None, 1), width=28, active=True)
         add.add_widget(self.task_in)
         add.add_widget(self.prio_spin)
-        add.add_widget(Label(text="复习", size_hint=(None, 1), width=40, font_size=12))
+        add.add_widget(Label(text="复习", size_hint=(None, 1), width=46, font_size=17))
         add.add_widget(self.review_cb)
-        add.add_widget(btn("添加", C["green"], self._add_task, width=80))
+        add.add_widget(btn("添加", C["green"], self._add_task, width=96))
         self.add_widget(add)
 
         self.summary = txt_label("", size_hint=(1, None), height=28, font_size=13,
@@ -255,7 +255,7 @@ class TasksScreen(BoxLayout):
     def _new_project(self, *_):
         from kivy.uix.popup import Popup
         box = BoxLayout(orientation="vertical", spacing=8, padding=10)
-        inp = TextInput(hint_text="项目名称", multiline=False, font_size=15)
+        inp = TextInput(hint_text="项目名称", multiline=False, font_size=17)
         box.add_widget(inp)
         row = BoxLayout(size_hint=(1, None), height=40, spacing=6)
         ok = btn("确定", C["green"], None, width=100)
@@ -304,7 +304,7 @@ class TasksScreen(BoxLayout):
             self.list_box.add_widget(self._row(t, done=True))
 
     def _row(self, t, done=False):
-        row = BoxLayout(size_hint_y=None, height=58, spacing=6, padding=(4, 2))
+        row = BoxLayout(size_hint_y=None, height=72, spacing=6, padding=(4, 2))
         cb = CheckBox(size_hint=(None, 1), width=30, active=done)
         pid = self.store.current_project()["id"]
 
@@ -323,10 +323,10 @@ class TasksScreen(BoxLayout):
         if not t.get("review") and not done:
             row.add_widget(btn("复习", C["review"],
                                lambda *_a, t=t: (self.store.enable_review(t["id"]), self.refresh()),
-                               width=60, height=40, font_size=13))
+                               width=78, height=54, font_size=15))
         row.add_widget(btn("删", C["red"],
                            lambda *_a, t=t: (self.store.soft_delete_task(t["id"]), self.refresh()),
-                           width=50, height=40, font_size=13))
+                           width=66, height=54, font_size=15))
         return row
 
 
@@ -343,31 +343,31 @@ class CardsScreen(BoxLayout):
         self.refresh()
 
     def _build(self):
-        imp = BoxLayout(size_hint=(1, None), height=120, spacing=6)
+        imp = BoxLayout(size_hint=(1, None), height=140, spacing=6)
         self.import_ta = TextInput(hint_text="批量导入：空行分隔卡片；第1行=正面，第2行起=背面",
-                                   font_size=14, multiline=True)
+                                   font_size=17, multiline=True)
         imp.add_widget(self.import_ta)
-        col = BoxLayout(orientation="vertical", size_hint=(None, 1), width=120, spacing=6)
-        col.add_widget(btn("导入卡片", C["accent"], self._do_import, height=44))
-        col.add_widget(btn("清空", C["border"], self._clear_import, color=C["text"], height=44))
+        col = BoxLayout(orientation="vertical", size_hint=(None, 1), width=140, spacing=6)
+        col.add_widget(btn("导入卡片", C["accent"], self._do_import, height=56))
+        col.add_widget(btn("清空", C["border"], self._clear_import, color=C["text"], height=56))
         imp.add_widget(col)
         self.add_widget(imp)
 
-        manual = BoxLayout(size_hint=(1, None), height=44, spacing=6)
-        self.mf = TextInput(size_hint=(0.45, 1), hint_text="正面", multiline=False, font_size=14)
-        self.mb = TextInput(size_hint=(0.45, 1), hint_text="背面", multiline=False, font_size=14)
+        manual = BoxLayout(size_hint=(1, None), height=56, spacing=6)
+        self.mf = TextInput(size_hint=(0.45, 1), hint_text="正面", multiline=False, font_size=17)
+        self.mb = TextInput(size_hint=(0.45, 1), hint_text="背面", multiline=False, font_size=17)
         manual.add_widget(self.mf)
         manual.add_widget(self.mb)
-        manual.add_widget(btn("手动添加", C["green"], self._manual, width=100))
+        manual.add_widget(btn("手动添加", C["green"], self._manual, width=124))
         self.add_widget(manual)
 
         self.stats = txt_label("", size_hint=(1, None), height=28, font_size=13,
                                color=C["muted"])
         self.add_widget(self.stats)
         self.add_widget(btn("开始复习", C["review"], self._start_review,
-                            size_hint=(1, None), height=46, font_size=16))
+                            size_hint=(1, None), height=64, font_size=20))
 
-        self.review_box = BoxLayout(size_hint=(1, None), height=200, spacing=6, padding=6)
+        self.review_box = BoxLayout(size_hint=(1, None), height=250, spacing=6, padding=6)
         self.add_widget(self.review_box)
 
         self.scroll = ScrollView(size_hint=(1, 1))
@@ -405,11 +405,11 @@ class CardsScreen(BoxLayout):
             self.list_box.add_widget(self._row(c))
 
     def _row(self, c):
-        row = BoxLayout(size_hint_y=None, height=46, spacing=6, padding=(4, 2))
+        row = BoxLayout(size_hint_y=None, height=58, spacing=6, padding=(4, 2))
         due = self.store._format_due(c) if hasattr(self.store, "_format_due") else ""
         row.add_widget(txt_label(f"{c['front']}  →  {c['back'][:30]}", height=40, font_size=13))
         row.add_widget(btn("删", C["red"], lambda *_a, cid=c["id"]: (self.store.delete_card(cid), self.refresh()),
-                           width=50, height=38, font_size=13))
+                           width=66, height=48, font_size=15))
         return row
 
     def _start_review(self, *_):
@@ -432,12 +432,12 @@ class CardsScreen(BoxLayout):
         inner.add_widget(txt_label(f"卡片 {self.idx+1}/{len(self.queue)}", height=22, font_size=12,
                                   color=C["muted"]))
         inner.add_widget(txt_label(c["front"], height=50, font_size=20))
-        foot = BoxLayout(size_hint=(1, None), height=46, spacing=6)
+        foot = BoxLayout(size_hint=(1, None), height=62, spacing=6)
         if has_phonetic(c["front"]) or has_phonetic(c["back"]):
             foot.add_widget(btn("🔊 朗读", C["green"],
-                                lambda *_a, c=c: speak_card(c), width=110, height=44))
+                                lambda *_a, c=c: speak_card(c), width=140, height=58))
         foot.add_widget(btn("显示答案", C["accent"], lambda *_a: self._reveal(inner, c),
-                            size_hint=(1, 1), height=44))
+                            size_hint=(1, 1), height=58))
         inner.add_widget(foot)
         self.review_box.add_widget(inner)
 
@@ -449,9 +449,9 @@ class CardsScreen(BoxLayout):
         inner.add_widget(txt_label(c["back"] or "（背面为空）", height=50, font_size=16))
         grades = [("重来", C["red"], "again"), ("困难10分", C["review"], "hard"),
                   ("良好1天", C["green"], "good"), ("简单3天", C["accent"], "easy")]
-        g = GridLayout(cols=4, size_hint=(1, None), height=48, spacing=4)
+        g = GridLayout(cols=4, size_hint=(1, None), height=72, spacing=4)
         for label, color, b in grades:
-            g.add_widget(btn(label, color, lambda *_a, b=b: self._grade(b), height=46, font_size=13))
+            g.add_widget(btn(label, color, lambda *_a, b=b: self._grade(b), height=66, font_size=17))
         inner.add_widget(g)
 
     def _grade(self, button):
@@ -474,14 +474,14 @@ class SyncScreen(BoxLayout):
         self.add_widget(txt_label("确保手机和电脑连同一个 Wi‑Fi，并已在电脑上双击"
                                   "「启动同步服务.bat」。", height=44, font_size=13,
                                   color=C["muted"]))
-        row = BoxLayout(size_hint=(1, None), height=46, spacing=6)
+        row = BoxLayout(size_hint=(1, None), height=60, spacing=6)
         self.ip_in = TextInput(hint_text="电脑 IP（可选，留空自动发现）", multiline=False,
-                               font_size=14)
+                               font_size=17)
         row.add_widget(self.ip_in)
         self.add_widget(row)
         self.add_widget(btn("发现并同步", C["accent"], self._sync, size_hint=(1, None),
-                           height=48, font_size=16))
-        self.status = txt_label("状态：未同步", height=200, font_size=14, color=C["text"])
+                           height=76, font_size=24))
+        self.status = txt_label("状态：未同步", height=240, font_size=16, color=C["text"])
         self.add_widget(self.status)
 
     def _sync(self, *_):
