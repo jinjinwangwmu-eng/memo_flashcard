@@ -7,7 +7,7 @@ package.domain = org.memo
 
 # 入口：本目录下的 main.py
 source.dir = .
-source.include_exts = py,png,jpg,kv,json,txt
+source.include_exts = py,png,jpg,kv,json,txt,ttf,otf
 
 version = 1.0.0
 version.code = 1
@@ -25,6 +25,8 @@ android.minapi = 21
 android.ndk = 25b
 android.accept_sdk_license = True
 android.arch = arm64-v8a
+# 中文字体：随包打入，供 main.py 注册为默认字体
+android.add_fonts = assets/font.ttf
 
 # 方向：竖屏
 orientation = portrait
