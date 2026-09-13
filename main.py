@@ -724,14 +724,16 @@ class MemoApp(App):
     def build(self):
         self.title = "记忆卡片 · 每日待办"
         panel = TabbedPanel(do_default_tab=False, size_hint=(1, 1),
-                            tab_font_size=sp(19), tab_height=62)
-        t1 = TabbedPanelItem(text="待办")
+                            tab_height=62)
+        # 注意：TabbedPanel 没有 tab_font_size 属性（传了会直接崩溃），
+        # 标签字号必须逐个设置到 TabbedPanelItem（Button 子类）上。
+        t1 = TabbedPanelItem(text="待办", font_size=sp(19))
         self.tasks_screen = TasksScreen(self.tasks_store)
         t1.add_widget(self.tasks_screen)
-        t2 = TabbedPanelItem(text="记忆卡片")
+        t2 = TabbedPanelItem(text="记忆卡片", font_size=sp(19))
         self.cards_screen = CardsScreen(self.fc_store)
         t2.add_widget(self.cards_screen)
-        t3 = TabbedPanelItem(text="同步")
+        t3 = TabbedPanelItem(text="同步", font_size=sp(19))
         self.sync_screen = SyncScreen(self.tasks_store, self.fc_store)
         t3.add_widget(self.sync_screen)
         panel.add_widget(t1)
