@@ -59,6 +59,7 @@ from flashcard_store import (  # noqa: E402
 )
 from sync_core import (  # noqa: E402
     discover_pc, export_tasks, export_cards, import_tasks, import_cards,
+    local_ip, scan_lan,
 )
 
 C = {
@@ -471,8 +472,8 @@ class SyncScreen(BoxLayout):
         self.fc_store = fc_store
         self.add_widget(txt_label("与电脑互相同步词库 / 待办", height=30, font_size=17,
                                   color=C["text"]))
-        self.add_widget(txt_label("确保手机和电脑连同一个 Wi‑Fi，并已在电脑上双击"
-                                  "「启动同步服务.bat」。", height=44, font_size=13,
+        self.add_widget(txt_label("先在电脑上点日常任务窗口顶部的「📱 同步」按钮，"
+                                  "再点下面的按钮（需连同一个 Wi‑Fi）。", height=52, font_size=13,
                                   color=C["muted"]))
         row = BoxLayout(size_hint=(1, None), height=60, spacing=6)
         self.ip_in = TextInput(hint_text="电脑 IP（可选，留空自动发现）", multiline=False,
@@ -484,23 +485,61 @@ class SyncScreen(BoxLayout):
         self.status = txt_label("状态：未同步", height=240, font_size=16, color=C["text"])
         self.add_widget(self.status)
 
+    def _say(self, msg: str) -> None:
+        Clock.schedule_once(lambda dt: setattr(self.status, "text", msg), 0)
+
     def _sync(self, *_):
         self.status.text = "正在同步…"
         threading.Thread(target=self._do_sync, daemon=True).start()
 
+    def _probe_http(self, ip: str, port: int, timeout: float = 2.0) -> bool:
+        """确认这个 IP 上跑的确实是本项目的同步服务。"""
+        try:
+            with urllib.request.urlopen(f"http://{ip}:{port}/data", timeout=timeout) as r:
+                obj = json.loads(r.read().decode("utf-8"))
+            return isinstance(obj, dict) and "tasks" in obj
+        except Exception:
+            return False
+
+    def _find_pc(self) -> tuple[str, int] | None:
+        """三级发现：广播 → 扫描网段 → 放弃。"""
+        self._say("正在广播发现电脑…")
+        found = discover_pc(timeout=4.0)
+        if found:
+            return found
+        me = local_ip()
+        self._say(f"广播无响应，正在扫描整个网段…\n（手机 IP：{me or '未取到，请确认已连 Wi‑Fi'}）")
+        hits = scan_lan(8765, timeout=0.4)
+        if me:
+            prefix = me.rsplit(".", 1)[0]
+            self._say(f"扫描 {prefix}.1~254，发现 {len(hits)} 台设备，正在识别…")
+        for ip in hits:
+            if self._probe_http(ip, 8765):
+                return (ip, 8765)
+        self._last_scan = (me, hits)
+        return None
+
     def _do_sync(self):
         try:
-            import urllib.request
             target = self.ip_in.text.strip()
             port = 8765
             if not target:
-                found = discover_pc(timeout=3.0)
-                if found:
-                    target, port = found
-                else:
-                    Clock.schedule_once(lambda dt: setattr(self.status, "text",
-                        "未发现电脑，请手动填写电脑 IP，或确认已启动同步服务。"), 0)
+                got = self._find_pc()
+                if not got:
+                    me, hits = getattr(self, "_last_scan", ("", []))
+                    self._say(
+                        "未发现电脑，请手动填写电脑 IP。\n\n"
+                        f"手机 IP：{me or '未取到（请确认连的是 Wi‑Fi，不是流量）'}\n"
+                        f"网段内可连通的设备：{len(hits)} 台\n"
+                        f"{('，'.join(hits[:6])) if hits else '（一台都连不上，多半是 Wi‑Fi 隔离或电脑服务未启动）'}\n\n"
+                        "请检查：\n"
+                        "1. 电脑上已点「📱 同步」按钮（或运行 启动同步服务.bat）\n"
+                        "2. 手机和电脑连同一个 Wi‑Fi\n"
+                        "3. 电脑上以管理员运行过「放行防火墙(管理员运行一次).bat」"
+                    )
                     return
+                target, port = got
+            self._say(f"已找到电脑 {target}，正在同步…")
             url = f"http://{target}:{port}/data"
             with urllib.request.urlopen(url, timeout=8) as r:
                 remote = json.loads(r.read().decode("utf-8"))

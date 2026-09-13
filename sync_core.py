@@ -192,6 +192,68 @@ def merge_payload(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, An
 
 # ------------------------- Wi‑Fi 设备发现（尽力而为；失败可手动输 IP） -------------------------
 
+def local_ip() -> str:
+    """获取本机在局域网中的 IP（不实际发包，只是查路由表）。"""
+    for probe in (("223.5.5.5", 80), ("8.8.8.8", 80), ("1.1.1.1", 80)):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(0.5)
+            s.connect(probe)
+            ip = s.getsockname()[0]
+            s.close()
+            if ip and ip.count(".") == 3 and not ip.startswith("127."):
+                return ip
+        except OSError:
+            continue
+        except Exception:
+            continue
+    return ""
+
+
+def _tcp_probe(ip: str, port: int, timeout: float):
+    """探测单个 IP 的 TCP 端口是否可连，返回 ip 或 None。"""
+    try:
+        with socket.create_connection((ip, port), timeout=timeout):
+            return ip
+    except OSError:
+        return None
+    except Exception:
+        return None
+
+
+def scan_lan(port: int, timeout: float = 0.4, max_workers: int = 64) -> list[str]:
+    """扫描手机所在网段的全部 IP，返回开放了指定端口的地址列表。
+
+    这是广播发现的兜底方案：很多路由器/手机会吃掉 UDP 广播，
+    但同网段 TCP 直连通常仍然可达。
+    """
+    me = local_ip()
+    if not me:
+        return []
+    prefix = me.rsplit(".", 1)[0]
+    cands = [f"{prefix}.{i}" for i in range(1, 255) if f"{prefix}.{i}" != me]
+    found: list[str] = []
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+    except Exception:
+        # 极端环境无线程池时退化为顺序扫描（慢但可用，限制前 60 个）
+        for ip in cands[:60]:
+            r = _tcp_probe(ip, port, timeout)
+            if r:
+                found.append(r)
+        return found
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = [ex.submit(_tcp_probe, ip, port, timeout) for ip in cands]
+        for f in futures:
+            try:
+                r = f.result()
+            except Exception:
+                r = None
+            if r:
+                found.append(r)
+    return found
+
+
 def discover_pc(timeout: float = 3.0):
     """手机端：广播发现电脑同步服务，返回 (ip, tcp_port) 或 None。"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
