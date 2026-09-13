@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .buildozer/
 bin/
+assets/*.ttf
+assets/*.otf
