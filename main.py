@@ -32,10 +32,23 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
 from kivy.uix.textinput import TextInput
 from kivy.utils import platform
+from kivy.core.text import LabelBase
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
+
+# --- 中文字体注册（关键）---
+# Kivy 默认字体 Roboto / DejaVuSans 不含中文字形，安卓上中文会渲染成方块或 "xx"。
+# 这里把自带的中文字体（assets/font.ttf）注册覆盖这些默认字体名，
+# 之后所有 Label / Button / TextInput 的中文都能正常显示。
+_FONT_FILE = HERE / "assets" / "font.ttf"
+if _FONT_FILE.exists():
+    for _fname in ("Roboto", "DejaVuSans", "DroidSansFallback"):
+        try:
+            LabelBase.register(name=_fname, fn_regular=str(_FONT_FILE))
+        except Exception:
+            pass
 
 from task_store import (  # noqa: E402
     TaskStore, PRIORITY_MIN, PRIORITY_MAX, PRIORITY_DEFAULT,
@@ -59,6 +72,32 @@ C = {
     "text": (0.07, 0.09, 0.12, 1),
     "border": (0.89, 0.9, 0.94, 1),
 }
+
+# 窗口背景设为浅色：Kivy 默认窗口底色是黑色，深色主题下界面会显得像"黑屏"
+try:
+    Window.clearcolor = C["bg"]
+except Exception:
+    pass
+
+
+def add_bg(widget, color=None):
+    """给容器加背景色。
+
+    Kivy 的 BoxLayout 默认透明，会透出 TabbedPanel 的深色主题背景，
+    导致整个界面发暗、看不清内容。这里用 canvas 画一层浅色底。
+    """
+    from kivy.graphics import Color, Rectangle
+    col = color or C["bg"]
+    with widget.canvas.before:
+        Color(*col)
+        rect = Rectangle(pos=widget.pos, size=widget.size)
+
+    def _upd(*_a):
+        rect.pos = widget.pos
+        rect.size = widget.size
+
+    widget.bind(pos=_upd, size=_upd)
+    return widget
 
 
 def rgb(ta):
@@ -168,6 +207,7 @@ def txt_label(text, size_hint=(1, None), height=40, halign="left", font_size=15,
 class TasksScreen(BoxLayout):
     def __init__(self, store: TaskStore, **kw):
         super().__init__(orientation="vertical", padding=10, spacing=8, **kw)
+        add_bg(self)
         self.store = store
         self._build()
         self.refresh()
@@ -294,6 +334,7 @@ class TasksScreen(BoxLayout):
 class CardsScreen(BoxLayout):
     def __init__(self, store: FlashcardStore, **kw):
         super().__init__(orientation="vertical", padding=10, spacing=8, **kw)
+        add_bg(self)
         self.store = store
         self.queue = []
         self.idx = 0
@@ -425,6 +466,7 @@ class CardsScreen(BoxLayout):
 class SyncScreen(BoxLayout):
     def __init__(self, tasks_store, fc_store, **kw):
         super().__init__(orientation="vertical", padding=14, spacing=10, **kw)
+        add_bg(self)
         self.tasks_store = tasks_store
         self.fc_store = fc_store
         self.add_widget(txt_label("与电脑互相同步词库 / 待办", height=30, font_size=17,
