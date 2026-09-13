@@ -19,6 +19,19 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v4
 
+      - name: 准备中文字体
+        # 中文字体不进仓库（体积大），改由云端构建时下载；main.py 会把它注册为默认字体
+        run: |
+          mkdir -p assets
+          curl -fsSL -o assets/font.ttf \
+            "https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/SimplifiedChinese/NotoSansSC-Regular.otf" || true
+          if [ ! -s assets/font.ttf ]; then
+            apt-get update -qq
+            apt-get install -y -qq fonts-wqy-microhei
+            cp /usr/share/fonts/truetype/wqy/wqy-microhei.ttc assets/font.ttf || true
+          fi
+          ls -la assets/
+
       - name: 构建 APK
         # CI 以 root 运行，buildozer 会询问 "Are you sure you want to continue [y/n]?"
         # 用 yes 管道自动应答 y，避免无终端时 EOFError 崩溃
