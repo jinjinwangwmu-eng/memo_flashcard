@@ -50,6 +50,32 @@ if _FONT_FILE.exists():
         except Exception:
             pass
 
+# --- 音标（IPA）专用字体 ---
+# 中文字体（思源黑体）不含 IPA 音标符号（æ ð ɪ ˈ ː 等），音标会渲染成方块/乱码。
+# 这里单独找一个含 IPA 的字体注册为 "IPA"，只在显示音标那一行使用。
+def _find_ipa_font() -> str:
+    p = HERE / "assets" / "ipa.ttf"
+    if p.exists():
+        return str(p)
+    try:
+        from kivy import kivy_data_dir
+        q = Path(kivy_data_dir) / "fonts" / "DejaVuSans.ttf"
+        if q.exists():
+            return str(q)
+    except Exception:
+        pass
+    return ""
+
+
+IPA_FONT = ""
+_f = _find_ipa_font()
+if _f:
+    try:
+        LabelBase.register(name="IPA", fn_regular=_f)
+        IPA_FONT = "IPA"
+    except Exception:
+        IPA_FONT = ""
+
 from task_store import (  # noqa: E402
     TaskStore, PRIORITY_MIN, PRIORITY_MAX, PRIORITY_DEFAULT,
 )
@@ -197,11 +223,31 @@ def btn(text, bg, on_press=None, color=(1, 1, 1, 1), size_hint=(None, None),
 
 
 def txt_label(text, size_hint=(1, None), height=44, halign="left", font_size=16,
-              color=C["text"], markup=False):
+              color=C["text"], markup=False, font_name=None):
+    kw = {"font_name": font_name} if font_name else {}
     l = Label(text=text, size_hint=size_hint, height=height, halign=halign,
-              valign="middle", font_size=font_size, color=color, markup=markup)
+              valign="middle", font_size=font_size, color=color, markup=markup, **kw)
     l.bind(size=lambda inst, sz: setattr(inst, "text_size", (sz[0] - 16, None)))
     return l
+
+
+_PHON_BLOCK_RE = re.compile(r"/[^/\n]+/|\[[^\]\n]+\]")
+_IPA_CHARS_RE = re.compile(r"[æɑəɜɛɪʊʌɔθðŋʃʒʧʤɡɹɾˈˌː̃]")
+
+
+def split_face(text: str):
+    """把卡片的一面拆成 (正文, 音标)。
+
+    中文字体不含 IPA 符号，音标必须单独一行用 IPA 字体渲染，否则显示成方块。
+    """
+    text = text or ""
+    ph = extract_phonetic(text, "")
+    if not ph:
+        return text, ""
+    body = _PHON_BLOCK_RE.sub(" ", text)
+    body = _IPA_CHARS_RE.sub("", body).strip()
+    # 注意：正文为空就返回空串，不能回退到原文，否则音标块又被塞回中文字体里渲染
+    return body, ph
 
 
 # ------------------------- 待办页 -------------------------
@@ -304,6 +350,24 @@ class TasksScreen(BoxLayout):
         for t in completed:
             self.list_box.add_widget(self._row(t, done=True))
 
+    def focus_nonempty(self):
+        """同步完成后：若当前项目没内容、而别的项目有，自动切过去。
+
+        否则同步下来的任务会"看不见"——数据其实已经进库，只是停在空项目上。
+        """
+        try:
+            if self.store.active_tasks(self.store.current_project()["id"]):
+                self.refresh()
+                return
+            for n in self.store.project_names():
+                p = self.store.find_project_by_name(n)
+                if p and self.store.active_tasks(p["id"]):
+                    self.store.set_current_project(p["id"])
+                    break
+        except Exception:
+            pass
+        self.refresh()
+
     def _row(self, t, done=False):
         row = BoxLayout(size_hint_y=None, height=72, spacing=6, padding=(4, 2))
         cb = CheckBox(size_hint=(None, 1), width=30, active=done)
@@ -368,8 +432,13 @@ class CardsScreen(BoxLayout):
         self.add_widget(btn("开始复习", C["review"], self._start_review,
                             size_hint=(1, None), height=64, font_size=20))
 
-        self.review_box = BoxLayout(size_hint=(1, None), height=250, spacing=6, padding=6)
-        self.add_widget(self.review_box)
+        # 复习区放进 ScrollView：字号放大后内容可能超过一屏，可滚动才不会被裁掉
+        self.review_scroll = ScrollView(size_hint=(1, None), height=470)
+        self.review_box = BoxLayout(orientation="vertical", size_hint_y=None,
+                                    spacing=8, padding=8)
+        self.review_box.bind(minimum_height=self.review_box.setter("height"))
+        self.review_scroll.add_widget(self.review_box)
+        self.add_widget(self.review_scroll)
 
         self.scroll = ScrollView(size_hint=(1, 1))
         self.list_box = GridLayout(cols=1, size_hint_y=None, spacing=4)
@@ -422,23 +491,30 @@ class CardsScreen(BoxLayout):
         self.review_box.clear_widgets()
         self.showing = False
         if self.idx >= len(self.queue):
-            self.review_box.add_widget(txt_label("🎉 今天的复习完成！", height=120, font_size=18,
+            self.review_box.add_widget(txt_label("🎉 今天的复习完成！", height=150, font_size=28,
                                                 color=C["green"]))
             self.queue = []
             self.idx = 0
             self.refresh()
             return
         c = self.queue[self.idx]
-        inner = BoxLayout(orientation="vertical", size_hint=(1, 1), spacing=6, padding=8)
-        inner.add_widget(txt_label(f"卡片 {self.idx+1}/{len(self.queue)}", height=22, font_size=12,
+        inner = BoxLayout(orientation="vertical", size_hint_y=None, spacing=8, padding=8)
+        inner.bind(minimum_height=inner.setter("height"))
+        inner.add_widget(txt_label(f"卡片 {self.idx+1}/{len(self.queue)}", height=26, font_size=14,
                                   color=C["muted"]))
-        inner.add_widget(txt_label(c["front"], height=50, font_size=20))
-        foot = BoxLayout(size_hint=(1, None), height=62, spacing=6)
+        body, ph = split_face(c["front"])
+        if body:
+            inner.add_widget(txt_label(body, height=130, font_size=38, halign="center"))
+        if ph:
+            inner.add_widget(txt_label(ph, height=58, font_size=28, halign="center",
+                                       color=C["accent"], font_name=IPA_FONT or None))
+        foot = BoxLayout(size_hint=(1, None), height=70, spacing=6)
         if has_phonetic(c["front"]) or has_phonetic(c["back"]):
             foot.add_widget(btn("🔊 朗读", C["green"],
-                                lambda *_a, c=c: speak_card(c), width=140, height=58))
+                                lambda *_a, c=c: speak_card(c), width=160, height=66,
+                                font_size=20))
         foot.add_widget(btn("显示答案", C["accent"], lambda *_a: self._reveal(inner, c),
-                            size_hint=(1, 1), height=58))
+                            size_hint=(1, 1), height=66, font_size=20))
         inner.add_widget(foot)
         self.review_box.add_widget(inner)
 
@@ -446,13 +522,17 @@ class CardsScreen(BoxLayout):
         if self.showing:
             return
         self.showing = True
-        inner.add_widget(txt_label("— 答案 —", height=22, font_size=12, color=C["muted"]))
-        inner.add_widget(txt_label(c["back"] or "（背面为空）", height=50, font_size=16))
+        inner.add_widget(txt_label("— 答案 —", height=26, font_size=14, color=C["muted"]))
+        bbody, bph = split_face(c["back"] or "（背面为空）")
+        inner.add_widget(txt_label(bbody, height=110, font_size=30, halign="center"))
+        if bph:
+            inner.add_widget(txt_label(bph, height=52, font_size=24, halign="center",
+                                       color=C["accent"], font_name=IPA_FONT or None))
         grades = [("重来", C["red"], "again"), ("困难10分", C["review"], "hard"),
                   ("良好1天", C["green"], "good"), ("简单3天", C["accent"], "easy")]
-        g = GridLayout(cols=4, size_hint=(1, None), height=72, spacing=4)
+        g = GridLayout(cols=4, size_hint=(1, None), height=96, spacing=4)
         for label, color, b in grades:
-            g.add_widget(btn(label, color, lambda *_a, b=b: self._grade(b), height=66, font_size=17))
+            g.add_widget(btn(label, color, lambda *_a, b=b: self._grade(b), height=92, font_size=19))
         inner.add_widget(g)
 
     def _grade(self, button):
@@ -519,8 +599,31 @@ class SyncScreen(BoxLayout):
         self._last_scan = (me, hits)
         return None
 
+    def _refresh_others(self):
+        """同步完成后刷新待办页与卡片页，让新数据立刻可见（必须回主线程）。"""
+        try:
+            app = App.get_running_app()
+        except Exception:
+            app = None
+        if app is None:
+            return
+        ts = getattr(app, "tasks_screen", None)
+        cs = getattr(app, "cards_screen", None)
+        if ts is not None:
+            try:
+                ts.focus_nonempty()
+            except Exception:
+                pass
+        if cs is not None:
+            try:
+                cs.refresh()
+            except Exception:
+                pass
+
     def _do_sync(self):
         try:
+            before_t = len([t for t in self.tasks_store.tasks if not t.get("deleted")])
+            before_c = self.fc_store.total()
             target = self.ip_in.text.strip()
             port = 8765
             if not target:
@@ -556,9 +659,16 @@ class SyncScreen(BoxLayout):
                 pc_merged = json.loads(r.read().decode("utf-8"))
             import_tasks(self.tasks_store, pc_merged["tasks"])
             import_cards(self.fc_store, pc_merged["cards"])
-            msg = (f"同步完成 ✅\n本地待办 {len(self.tasks_store.tasks)} 条，"
-                   f"卡片 {self.fc_store.total()} 张。")
+            after_t = len([t for t in self.tasks_store.tasks if not t.get("deleted")])
+            after_c = self.fc_store.total()
+            msg = (f"同步完成 ✅\n"
+                   f"本次新增：待办 {max(0, after_t - before_t)} 条、"
+                   f"卡片 {max(0, after_c - before_c)} 张\n"
+                   f"手机现有：待办 {after_t} 条、卡片 {after_c} 张\n"
+                   f"（电脑端 {len(remote.get('tasks', []))} 条 / "
+                   f"{len(remote.get('cards', []))} 张）")
             Clock.schedule_once(lambda dt: setattr(self.status, "text", msg), 0)
+            Clock.schedule_once(lambda dt: self._refresh_others(), 0)
         except Exception as exc:  # noqa: BLE001
             Clock.schedule_once(lambda dt, e=exc: setattr(self.status, "text",
                                f"同步失败：{e}\n（检查电脑 IP / 同一 Wi‑Fi / 同步服务是否已启动）"), 0)
@@ -584,9 +694,11 @@ class MemoApp(App):
         self.title = "记忆卡片 · 每日待办"
         panel = TabbedPanel(do_default_tab=False, size_hint=(1, 1))
         t1 = TabbedPanelItem(text="待办")
-        t1.add_widget(TasksScreen(self.tasks_store))
+        self.tasks_screen = TasksScreen(self.tasks_store)
+        t1.add_widget(self.tasks_screen)
         t2 = TabbedPanelItem(text="记忆卡片")
-        t2.add_widget(CardsScreen(self.fc_store))
+        self.cards_screen = CardsScreen(self.fc_store)
+        t2.add_widget(self.cards_screen)
         t3 = TabbedPanelItem(text="同步")
         t3.add_widget(SyncScreen(self.tasks_store, self.fc_store))
         panel.add_widget(t1)

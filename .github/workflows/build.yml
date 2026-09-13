@@ -32,6 +32,20 @@ jobs:
           fi
           ls -la assets/
 
+      - name: 准备音标(IPA)字体
+        # 中文字体不含 IPA 音标符号（æ ð ɪ ˈ 等），音标会显示成方块。
+        # DejaVuSans 覆盖 IPA 扩展区，单独下载给音标那一行用。
+        run: |
+          mkdir -p assets
+          curl -fsSL -o assets/ipa.ttf \
+            "https://raw.githubusercontent.com/kivy/kivy/master/kivy/data/fonts/DejaVuSans.ttf" || true
+          if [ ! -s assets/ipa.ttf ]; then
+            apt-get update -qq
+            apt-get install -y -qq fonts-dejavu-core
+            cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf assets/ipa.ttf || true
+          fi
+          ls -la assets/
+
       - name: 构建 APK
         # CI 以 root 运行，buildozer 会询问 "Are you sure you want to continue [y/n]?"
         # 用 yes 管道自动应答 y，避免无终端时 EOFError 崩溃
